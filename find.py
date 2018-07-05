@@ -9,7 +9,7 @@ Gene=0
 f=open('ref.fasta','w')
 for i in open(sys.argv[2],'r'):
     line=i.strip().split('\t')
-    if line[2] != 'gene' and line[2] != 'exon':
+    if len(line)!=0 and line[0][0]!='#' and line[2] != 'gene' and line[2] != 'exon':
         start=int(line[3])
         end=int(line[4])
         strange=line[6]
