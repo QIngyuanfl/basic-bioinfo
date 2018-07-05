@@ -59,11 +59,15 @@ def write_tbl(loci,d):
                 if 'product' in y[1][1]:
                     product=y[1][1].split('[product=')[-1].split(']')[0]
                     if '%3B' in product:
-                        product=product.replace('%3B',',')
+                        product=product.replace('%3B',';')
+                    if '%2C' in product:
+                        product=product.replace('%2C',',')
                 if 'note' in y[1][1]:
                     note=y[1][1].split('[note=')[-1].split(']')[0]
                     if '%3B' in note:
-                        note=note.replace('%3B',',')
+                        note=note.replace('%3B',';')
+                    if '%2C' in note:
+                        note=note.replace('%2C',',')
                 if i==x:
                     if y[1][2]=='type=CDS':
                         length=int(d[y[0]])
