@@ -51,7 +51,7 @@ def write_tbl(loci,d):
                             j.append([line[1],line[2],line[3]])
     site=list(sorted(loci))
     with open(sys.argv[3],'w') as f:
-        f.write('>Feature\n')
+        f.write('>Features\n')
         Gene=0
         for i in site:
             for x,y in loci.items():
