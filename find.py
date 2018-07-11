@@ -23,9 +23,19 @@ for i in open(sys.argv[2],'r'):
         if line[2] =='CDS':
             gene=info.split('gene=')[-1].split(';')[0]
             product=info.split('product=')[-1].split(';')[0]
+            if '%3B' in gene:
+                gene.replace('%3B',';')
+            if '%2C' in gene:
+                gene.replace('%2C',',')
+            if '%3B' in product:
+                product.replace('%3B',';')
+            if '%2C' in product:
+                product.replace('2C',',')
             if product != 'hypothetical protein':
                 if "pseudo=true" in i.strip():
                     note=info.split('Note=')[-1].split(';')[0]
+                    if '%3B' in note:
+                        note.replace('%3B',';')
                     if 'ID=' not in gene:
                         f.write('>%s\t[gene=%s]\t[note=%s;product=%s]\ttype=CDS\t%s\n%s\n' % (ID,gene,note,product,len(result_seq),result_seq))
                     else:
