@@ -23,14 +23,13 @@ def main():
             if line.strip().startswith('gene'):
                 line=line.strip().split()
                 n_line=f.next()
-                if 'CDS' in n_line:
-                    gene.append(line[1])
                 if '0'<=n_line[0]<='9':
                     n_line=n_line.strip().split()
                     if n_line[2] == 'CDS':
                         start=int(n_line[0])
                         end=int(n_line[1])
                         loci.append([start,end])
+                        gene.append(line[1])
         for i in range (len(gene)):
             if loci[i][0] < loci[i][1]:
                 seq=sequence[loci[i][0]-1:loci[i][1]]
@@ -48,7 +47,7 @@ def main():
                 if y in [x for x in star]:
                     print('Warning: internal stop codon in gene %s'% (gene[i]))
                     break
-                
+            
 
         print ('Examine complete')
 if __name__ =='__main__':
