@@ -140,8 +140,9 @@ def combine_asn():
                 if num in records[j]:
                     seq=records[j].split('\n',1)
                     sequence=''.join(seq[1].split('\n'))
-                    f.write(sequence)
+                    f.write('%s'%sequence)
             handle.close()
+        f.write('\n')
     f.close()
                     
 def main():
