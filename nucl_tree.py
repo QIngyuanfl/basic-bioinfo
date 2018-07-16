@@ -128,7 +128,7 @@ def muscle():
 def combine_asn():
     fs=os.listdir('./muscle')
     asn=parse()
-    f=open('combine.fa','a+')
+    f=open('combine.fa','w')
     for num in asn:
         f.write('>')
         f.write(num + '\n')
@@ -139,13 +139,13 @@ def combine_asn():
             for j in range(len(records)):
                 if num in records[j]:
                     seq=records[j].split('\n',1)
-                    sequence=seq[1]
-                    f.writelines(sequence)
+                    sequence=''.join(seq[1].split('\n'))
+                    f.write(sequence)
             handle.close()
     f.close()
                     
 def main():
-    #downloadsASN()
+    downloadsASN()
     combine_gene()
     muscle()
     combine_asn()
