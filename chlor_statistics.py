@@ -14,17 +14,21 @@ def read_params(argvs):
                                             'AUTHOR:'+__author__)
     arg = parser.add_argument
     arg ('fasta', type=str, default=None, metavar='input nucl fasta', help='Fasta file with nucleotide and tRNA sequence')
-    arg ('-seqtype', type=str, choices=['tRNA','CDS'], default='CDS', metavar='type of sequence', help='The default sequence type is CDS, tRNAs and rRNAs are supported')
+    arg ('-seqtype', type=str, choices=['tRNA','CDS'], default='None', metavar='type of sequence', help='CDSs, tRNAs and rRNAs are supported')
     arg('-task', type=str, choices=['cs'], default=None, metavar='type of analyse', help="cs\t calculate and draw CDSs' gc skew" )
     return vars(parser.parse_args())
     
 
 def seq_parse(fasta, seqtype):
     seg={}
-
     with open(fasta) as nucl:
         for i in SeqIO.parse(nucl,'fasta'):
-            seg[i.id]=i.seq
+            try:
+                while i.id in seg:
+                    i.id += '+' 
+            except KeyError:
+                pass
+            seg[i.id] = i.seq
     if seqtype == 'CDS':
         for key in list(seg):
             if 'tRNA' in key or 'rrn' in key:
@@ -88,6 +92,10 @@ def skew_draw():
         f.write('ggplot(gc_long,aes(x=as.numeric(Pc),y=value,colour=variable)) + geom_line() +geom_point()+labs (y= "value", x= "Gene", colour="skew") +scale_x_continuous(limits=c(1,%s),breaks=c(%s),labels=c(%s))' % (n, breaks, Pc))
 
     os.system('Rscript gc_skew.R')
+
+#def gene_classfication(sequence):
+    
+    
 
 def main():
     args = read_params(sys.argv)
