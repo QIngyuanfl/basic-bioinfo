@@ -1,46 +1,71 @@
 #!/usr/bin/env python
 
 import os
+import re
 import sys
 from Bio import SeqIO
 from argparse import ArgumentParser
 
 __author__ = 'Qingyuan Zhang(zhangqingyuan@scgene.com)'
-__version__ = '0.1.0'
+__version__ = 'V1.0'
 __date__ = '18 July 2018'
 
 def read_params(argvs):
     parser = ArgumentParser(description = 'chlorplast genome V2 parser' +__version__+ '(' +__date__ + ')'
                                             'AUTHOR:'+__author__)
     arg = parser.add_argument
-    arg ('fasta', type=str, default=None, metavar='input nucl fasta', help='Fasta file with nucleotide and tRNA sequence')
-    arg ('-seqtype', type=str, choices=['tRNA','CDS'], default='None', metavar='type of sequence', help='CDSs, tRNAs and rRNAs are supported')
-    arg('-task', type=str, choices=['cs'], default=None, metavar='type of analyse', help="cs\t calculate and draw CDSs' gc skew" )
+    arg ('genbank', type=str, default=None, metavar='input query genbank', help='Genbank file with nucleotide and tRNA sequence')
+    arg ('-seqtype', type=str, choices=['tRNA','CDS', 'all'], default='all', metavar = ['tRNA', 'CDS', 'all'], help='CDSs, tRNAs and rRNAs are supported')
+    arg('-task', type=str, choices=['cs','cl','bs'], default=None, metavar=['cs','cl','bs'], help="cs -> calculate gc skew and at skew; cl -> gene classification forms; bs -> base statistics(seqtype CDS is required)" )
     return vars(parser.parse_args())
     
+def base_ratio(seq):
+    A = seq.count('A')
+    T = seq.count('T')
+    G = seq.count('G')
+    C = seq.count('C')
+    length = A + T + G +C
+    a = float(A)/length*100
+    t = float(T)/length*100
+    g = float(G)/length*100
+    c = float(C)/length*100
+    return a, t, g, c, length
 
-def seq_parse(fasta, seqtype):
-    seg={}
-    with open(fasta) as nucl:
-        for i in SeqIO.parse(nucl,'fasta'):
-            try:
-                while i.id in seg:
-                    i.id += '+' 
-            except KeyError:
-                pass
-            seg[i.id] = i.seq
+def genbank_parse(genbank, seqtype):
+    seg = {}
+    misc = {}
+    frac = {}
+    repeat = []
+    for i in SeqIO.parse(genbank,'genbank'):
+        for seq_feature in i.features:
+            if seq_feature.type == 'misc_feature':
+                misc_feature = seq_feature.qualifiers.values()[0][0]
+                geneSeq = seq_feature.extract(i.seq)
+                misc[misc_feature] = geneSeq
+            if 'join' in str(seq_feature.location):
+                frac[seq_feature.qualifiers['gene'][0]] = seq_feature.location
+            if 'gene' in seq_feature.qualifiers and len(seq_feature.qualifiers) > 1:
+                if 'intron' not in seq_feature.type and 'exon' not in seq_feature.type:
+                    gene = seq_feature.qualifiers['gene'][0]
+                    gene_location = seq_feature.location
+                    geneSeq = seq_feature.extract(i.seq)
+                    try:
+                        if gene in seg:
+                            repeat.append(gene) 
+                    except KeyError:
+                        pass    
+                    seg[gene] = geneSeq
     if seqtype == 'CDS':
-        for key in list(seg):
+        for key in list (seg):
             if 'tRNA' in key or 'rrn' in key:
                 seg.pop(key)
     if seqtype == 'tRNA':
         for key in list(seg):
             if not 'tRNA' in key:
                 seg.pop(key)
+    return seg, misc, repeat, frac      
 
-    return seg
-
-def gcskew(sequence,args):
+def gcskew(sequence, args):
     if args['seqtype'] == 'CDS':
         f=open('gc_skew.csv','w')
         f.write('Pc' + '\t' + 'GC_skew' + '\t' + 'AT_skew' + '\n')
@@ -70,7 +95,6 @@ def skew_draw():
     csv = {}
     n = 0
     breaks = ''
-
     with open('gc_skew.csv') as f:
         f.next()
         for line in f:
@@ -93,15 +117,137 @@ def skew_draw():
 
     os.system('Rscript gc_skew.R')
 
-#def gene_classfication(sequence):
-    
-    
+def gene_classfication(sequence, repeat):
+    n_tRNA = 0; n_rRNA =0
+    rrn = ''; rps = ''; rpl = ''; rpo = ''; ndh = ''; psa = ''; psb = ''; pet = ''; atp = ''; ycf = ''
+    for i in sequence:
+        if 'tRNA' in i:
+            n_tRNA += 1
+        elif 'rrn' in i and i not in repeat:
+            rrn += (i + '\t')
+        elif 'rps' in i and i not in repeat:
+            rps += (i + '\t')
+        elif 'rpl' in i and i not in repeat:
+            rpl += (i + '\t')
+        elif 'rpo' in i and i not in repeat:
+            rpo += (i + '\t')
+        elif 'ndh' in i and i not in repeat:
+            ndh += (i + '\t')
+        elif 'psa' in i and i not in repeat:
+            psa += (i + '\t')
+        elif 'psb' in i and i not in repeat:
+            psb += (i + '\t')
+        elif 'pet' in i and i not in repeat:
+            pet += (i + '\t')
+        elif 'atp' in i and i not in repeat:
+            atp += (i + '\t')
+        elif 'ycf' in i and i not in repeat:
+            ycf += (i + '\t')
+        else :
+            if i not in repeat:
+                print i
+    for j in repeat:
+        if 'tRNA' in j:
+            n_tRNA += 1
+        if 'rrn' in j:
+            rrn += ('%s(x2)\t' % (j))
+        if 'rps' in j:
+            rps += ('%s(x2)\t' % (j))
+        if 'rpl' in j:
+            rpl += ('%s(x2)\t' % (j))
+        if 'rpo' in j:
+            rpo += ('%s(x2)\t' % (j))
+        if 'ndh' in j:
+            ndh += ('%s(x2)\t' % (j))
+        if 'psa' in j:
+            psa += ('%s(x2)\t' % (j))
+        if 'psb' in j:
+            psb += ('%s(x2)\t' % (j))
+        if 'pet' in j:
+            pet += ('%s(x2)\t' % (j))
+        if 'atp' in j:
+            atp += ('%s(x2)\t' % (j))
+        if 'ycf' in j:
+            ycf += ('%s(x2)\t' % (j))
+    print '%s tRNA genes' % (n_tRNA)
+    print rrn
+    print rps
+    print rpl
+    print rpo
+    print ndh
+    print psa
+    print psb
+    print pet
+    print atp
+    print ycf
 
+def section_statistics(misc, seg, repeat,  args):
+    ta = 0; tt = 0; tc = 0; tg = 0
+    print 'region', 'A(U)%', 'T(%)', 'G(%)', 'C(%)' , 'length(bp)'
+    for i in misc:
+        a, t, g, c, sum_base = base_ratio(misc[i])
+        print i, a, t, g, c, sum_base
+        ta += a; tt += t; tg += g; tc += c
+    sum_all = ta + tt + tg + tc
+    a = float(ta)/sum_all*100; t = float(tt)/sum_all*100
+    g = float(tg)/sum_all*100; c = float(tc)/sum_all*100
+    print 'Total', a, t, g, c, sum_all
+    if args['seqtype'] == 'CDS':
+        p0 = ''; p1 = ''; p2 = ''
+        sequence = ''.join([str(x) for x in seg.values()])
+        count = 0
+        for i in repeat:
+            if 'tRNA' not in i and 'rrn' not in i:
+                sequence += str(seg[i].reverse_complement())
+        A, T, G, C, length = base_ratio(sequence)
+        print 'CDS', A, T, G, C, length
+        for b in range(len(sequence)):
+            if b % 3 == 0:
+                p0 += sequence[b]
+            if b % 3 == 1:
+                p1 += sequence[b]
+            if b % 3 == 2:
+                p2 += sequence[b]
+        a0, t0, g0, c0, length = base_ratio(p0)
+        print '1st position', a0, t0, g0, c0, length
+        a1, t1, g1, c1, length = base_ratio(p1)
+        print '2ed position', a1, t1, g1, c1, length
+        a2, t2, g2, c2, length = base_ratio(p2)
+        print '3rd position', a2, t2, g2, c2, length
+def frac_info(genbank):
+    gb = SeqIO.read(genbank,'genbank')
+    cds = {}
+    start = 0; end = 0
+    for i in gb.features:
+        if i.type == 'CDS' and 'join' in str(i.location):
+            if i.location.start > start and i.location.end < end:
+                length = []
+                loci = sorted(re.findall(r'\d+\.?\d*' , str(i.location)))
+                for j in range(1, len(loci)):
+                    length.append(str(int(loci[j]) - int(loci[j-1])))
+                print i.qualifiers['gene'][0], misc, '\t'.join((length))
+                        
+
+            else: 
+                loci = sorted(re.findall(r'\d+\.?\d*' , str(i.location)))
+                print i.qualifiers['gene'][0], 'LSC/IR'
+        if i.type == 'misc_feature':
+            start = i.location.start
+            end = i.location.end
+            misc = i.qualifiers['note'][0]
+
+            
+    
 def main():
     args = read_params(sys.argv)
-    fasta = seq_parse(args['fasta'], args['seqtype'])
+    fasta, misc, repeat, frac = genbank_parse(args['genbank'], args['seqtype'])
     if args['task'] == 'cs':
-        gcskew(fasta,args)
+        gcskew(fasta, args)
         skew_draw()
+    if args['task'] == 'cl':
+        gene_classfication(fasta, repeat)
+    if args['task'] == 'bs':
+        section_statistics(misc, fasta, repeat, args)
+    frac_info(args['genbank'])
 if __name__ == "__main__":
     main()
