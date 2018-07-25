@@ -16,7 +16,7 @@ def read_params(argvs):
     arg = parser.add_argument
     arg ('genbank', type=str, default=None, metavar='input query genbank', help='Genbank file with nucleotide and tRNA sequence')
     arg ('-seqtype', type=str, choices=['tRNA','CDS', 'all'], default='all', metavar = ['tRNA', 'CDS', 'all'], help='CDSs, tRNAs and rRNAs are supported')
-    arg('-task', type=str, choices=['cs','cl','bs'], default=None, metavar=['cs','cl','bs'], help="cs -> calculate gc skew and at skew; cl -> gene classification forms; bs -> base statistics(seqtype CDS is required)" )
+    arg('-task', type=str, choices=['cs','cl','bs', 'f'], default=None, metavar=['cs','cl','bs'], help="cs -> calculate gc skew and at skew; cl -> gene classification forms; bs -> base statistics(seqtype CDS is required, f -> fracture gene statistics)" )
     return vars(parser.parse_args())
     
 def base_ratio(seq):
@@ -31,12 +31,23 @@ def base_ratio(seq):
     c = float(C)/length*100
     return a, t, g, c, length
 
+def skew(seq):
+    g=seq.count('G')
+    c=seq.count('C')
+    a=seq.count('A')
+    t=seq.count('T')
+    GC_skew = float(g-c)/(g+c)
+    AT_skew = float(a-t)/(a+t)
+    return GC_skew, AT_skew
+
 def genbank_parse(genbank, seqtype):
     seg = {}
     misc = {}
     frac = {}
+    single ={}
     repeat = []
     for i in SeqIO.parse(genbank,'genbank'):
+        single[i.id] = i.seq
         for seq_feature in i.features:
             if seq_feature.type == 'misc_feature':
                 misc_feature = seq_feature.qualifiers.values()[0][0]
@@ -63,7 +74,7 @@ def genbank_parse(genbank, seqtype):
         for key in list(seg):
             if not 'tRNA' in key:
                 seg.pop(key)
-    return seg, misc, repeat, frac      
+    return seg, misc, repeat, frac, single     
 
 def gcskew(sequence, args):
     if args['seqtype'] == 'CDS':
@@ -214,10 +225,12 @@ def section_statistics(misc, seg, repeat,  args):
         print '2ed position', a1, t1, g1, c1, length
         a2, t2, g2, c2, length = base_ratio(p2)
         print '3rd position', a2, t2, g2, c2, length
+
 def frac_info(genbank):
     gb = SeqIO.read(genbank,'genbank')
     cds = {}
     start = 0; end = 0
+    repeat = False
     for i in gb.features:
         if i.type == 'CDS' and 'join' in str(i.location):
             if i.location.start > start and i.location.end < end:
@@ -226,21 +239,28 @@ def frac_info(genbank):
                 for j in range(1, len(loci)):
                     length.append(str(int(loci[j]) - int(loci[j-1])))
                 print i.qualifiers['gene'][0], misc, '\t'.join((length))
-                        
-
-            else: 
-                loci = sorted(re.findall(r'\d+\.?\d*' , str(i.location)))
-                print i.qualifiers['gene'][0], 'LSC/IR'
+            else:
+                if repeat == False:
+                    loci = sorted(re.findall(r'\d+\.?\d*' , str(i.location)))
+                    length = []
+                    for j in range(1, len(loci), 2):
+                        length.append(str(int(loci[j]) - int(loci[j-1])))
+                    print i.qualifiers['gene'][0], 'LSC/IR', '\t'.join((length))
+                    repeat = True
         if i.type == 'misc_feature':
             start = i.location.start
             end = i.location.end
             misc = i.qualifiers['note'][0]
 
-            
+def base_statistics(single):
+    sequence = str(single.values()[0])
+    AT_percent = base_ratio(sequence)[0] + base_ratio(sequence)[1]
+    GC_skew, AT_skew = skew(sequence)
+    print GC_skew
     
 def main():
     args = read_params(sys.argv)
-    fasta, misc, repeat, frac = genbank_parse(args['genbank'], args['seqtype'])
+    fasta, misc, repeat, frac, single = genbank_parse(args['genbank'], args['seqtype'])
     if args['task'] == 'cs':
         gcskew(fasta, args)
         skew_draw()
@@ -248,6 +268,8 @@ def main():
         gene_classfication(fasta, repeat)
     if args['task'] == 'bs':
         section_statistics(misc, fasta, repeat, args)
-    frac_info(args['genbank'])
+    if args['task'] == 'f':
+        frac_info(args['genbank'])
+    base_statistics(single)
 if __name__ == "__main__":
     main()
