@@ -16,7 +16,7 @@ def read_params(argvs):
     arg = parser.add_argument
     arg ('genbank', type=str, default=None, metavar='input query genbank', help='Genbank file with nucleotide and tRNA sequence')
     arg ('-seqtype', type=str, choices=['tRNA','CDS', 'all'], default='all', metavar = ['tRNA', 'CDS', 'all'], help='CDSs, tRNAs and rRNAs are supported')
-    arg('-task', type=str, choices=['cs','cl','bs', 'f', 'l'], default=None, metavar=['cs','cl','bs', 'f', 'l'], help="cs -> calculate gc skew and at skew; cl -> gene classification forms; bs -> base statistics(seqtype CDS is required, f -> fracture gene statistics, l->叶绿体基因组与编码基因，tRNA碱基比例)" )
+    arg('-task', type=str, choices=['cs','cl','bs', 'f', 'l'], default=None, metavar=['cs','cl','bs', 'f', 'l'], help="cs -> calculate gc skew and at skew; cl -> gene classification forms; bs -> base statistics(seqtype CDS is required, f -> fracture gene statistics, l->chlorplast genome, protein coding gene, tRNAs base statistics)" )
     return vars(parser.parse_args())
     
 def base_ratio(seq):
@@ -53,6 +53,8 @@ def genbank_parse(genbank, seqtype):
         for seq_feature in i.features:
             if seq_feature.type == 'tRNA':
                 single_tRNA += seq_feature.extract(i.seq)
+            if seq_feature.type == 'CDS':
+                single_CDS += seq_feature.extract(i.seq)
             if seq_feature.type == 'misc_feature':
                 misc_feature = seq_feature.qualifiers.values()[0][0]
                 geneSeq = seq_feature.extract(i.seq)
@@ -64,7 +66,6 @@ def genbank_parse(genbank, seqtype):
                     gene = seq_feature.qualifiers['gene'][0]
                     gene_location = seq_feature.location
                     geneSeq = seq_feature.extract(i.seq)
-                    single_CDS += geneSeq
                     try:
                         if gene in seg:
                             repeat.append(gene) 
@@ -197,39 +198,34 @@ def gene_classfication(sequence, repeat):
     print atp
     print ycf
 
-def section_statistics(misc, seg, repeat,  args):
-    ta = 0; tt = 0; tc = 0; tg = 0
+def section_statistics(misc, seg, cds):
+    ta = 0; tt = 0; tc = 0; tg = 0; sum_all = 0
     print 'region', 'A(U)%', 'T(%)', 'G(%)', 'C(%)' , 'length(bp)'
     for i in misc:
         a, t, g, c, sum_base = base_ratio(misc[i])
-        print i, a, t, g, c, sum_base
+        print i, '\t', a,'\t', t,'\t', g,'\t', c,'\t', sum_base
         ta += a; tt += t; tg += g; tc += c
-    sum_all = ta + tt + tg + tc
+        sum_all += sum_base
     a = float(ta)/sum_all*100; t = float(tt)/sum_all*100
     g = float(tg)/sum_all*100; c = float(tc)/sum_all*100
-    print 'Total', a, t, g, c, sum_all
-    if args['seqtype'] == 'CDS':
-        p0 = ''; p1 = ''; p2 = ''
-        sequence = ''.join([str(x) for x in seg.values()])
-        count = 0
-        for i in repeat:
-            if 'tRNA' not in i and 'rrn' not in i:
-                sequence += str(seg[i].reverse_complement())
-        A, T, G, C, length = base_ratio(sequence)
-        print 'CDS', A, T, G, C, length
-        for b in range(len(sequence)):
-            if b % 3 == 0:
-                p0 += sequence[b]
-            if b % 3 == 1:
-                p1 += sequence[b]
-            if b % 3 == 2:
-                p2 += sequence[b]
-        a0, t0, g0, c0, length = base_ratio(p0)
-        print '1st position', a0, t0, g0, c0, length
-        a1, t1, g1, c1, length = base_ratio(p1)
-        print '2ed position', a1, t1, g1, c1, length
-        a2, t2, g2, c2, length = base_ratio(p2)
-        print '3rd position', a2, t2, g2, c2, length
+    print 'Total', '\t', a,'\t',t,'\t', g,'\t', c,'\t', sum_all
+    p0 = ''; p1 = ''; p2 = ''
+    sequence = cds
+    A, T, G, C, length = base_ratio(sequence)
+    print 'CDS', '\t',A,'\t', T,'\t', G,'\t', C,'\t', length
+    for b in range(len(sequence)):
+        if b % 3 == 0:
+            p0 += sequence[b]
+        if b % 3 == 1:
+            p1 += sequence[b]
+        if b % 3 == 2:
+            p2 += sequence[b]
+    a0, t0, g0, c0, length = base_ratio(p0)
+    print '1st position', '\t', a0,'\t', t0,'\t', g0,'\t', c0,'\t', length
+    a1, t1, g1, c1, length = base_ratio(p1)
+    print '2ed position', '\t', a1,'\t',t1,'\t', g1,'\t', c1,'\t', length
+    a2, t2, g2, c2, length = base_ratio(p2)
+    print '3rd position', '\t',a2,'\t', t2,'\t', g2,'\t', c2,'\t', length
 
 def frac_info(genbank):
     gb = SeqIO.read(genbank,'genbank')
@@ -285,7 +281,7 @@ def main():
     if args['task'] == 'cl':
         gene_classfication(fasta, repeat)
     if args['task'] == 'bs':
-        section_statistics(misc, fasta, repeat, args)
+        section_statistics(misc, fasta, CDS)
     if args['task'] == 'f':
         frac_info(args['genbank'])
     if args['task'] == 'l':
