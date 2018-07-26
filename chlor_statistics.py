@@ -16,7 +16,7 @@ def read_params(argvs):
     arg = parser.add_argument
     arg ('genbank', type=str, default=None, metavar='input query genbank', help='Genbank file with nucleotide and tRNA sequence')
     arg ('-seqtype', type=str, choices=['tRNA','CDS', 'all'], default='all', metavar = ['tRNA', 'CDS', 'all'], help='CDSs, tRNAs and rRNAs are supported')
-    arg('-task', type=str, choices=['cs','cl','bs', 'f'], default=None, metavar=['cs','cl','bs'], help="cs -> calculate gc skew and at skew; cl -> gene classification forms; bs -> base statistics(seqtype CDS is required, f -> fracture gene statistics)" )
+    arg('-task', type=str, choices=['cs','cl','bs', 'f', 'l'], default=None, metavar=['cs','cl','bs', 'f', 'l'], help="cs -> calculate gc skew and at skew; cl -> gene classification forms; bs -> base statistics(seqtype CDS is required, f -> fracture gene statistics, l->叶绿体基因组与编码基因，tRNA碱基比例)" )
     return vars(parser.parse_args())
     
 def base_ratio(seq):
@@ -44,11 +44,15 @@ def genbank_parse(genbank, seqtype):
     seg = {}
     misc = {}
     frac = {}
-    single ={}
+    single = {}
     repeat = []
+    single_CDS = ''
+    single_tRNA = ''
     for i in SeqIO.parse(genbank,'genbank'):
         single[i.id] = i.seq
         for seq_feature in i.features:
+            if seq_feature.type == 'tRNA':
+                single_tRNA += seq_feature.extract(i.seq)
             if seq_feature.type == 'misc_feature':
                 misc_feature = seq_feature.qualifiers.values()[0][0]
                 geneSeq = seq_feature.extract(i.seq)
@@ -60,6 +64,7 @@ def genbank_parse(genbank, seqtype):
                     gene = seq_feature.qualifiers['gene'][0]
                     gene_location = seq_feature.location
                     geneSeq = seq_feature.extract(i.seq)
+                    single_CDS += geneSeq
                     try:
                         if gene in seg:
                             repeat.append(gene) 
@@ -74,7 +79,7 @@ def genbank_parse(genbank, seqtype):
         for key in list(seg):
             if not 'tRNA' in key:
                 seg.pop(key)
-    return seg, misc, repeat, frac, single     
+    return seg, misc, repeat, frac, single, single_CDS, single_tRNA     
 
 def gcskew(sequence, args):
     if args['seqtype'] == 'CDS':
@@ -135,25 +140,25 @@ def gene_classfication(sequence, repeat):
         if 'tRNA' in i:
             n_tRNA += 1
         elif 'rrn' in i and i not in repeat:
-            rrn += (i + '\t')
+            rrn += (i + ', ')
         elif 'rps' in i and i not in repeat:
-            rps += (i + '\t')
+            rps += (i + ', ')
         elif 'rpl' in i and i not in repeat:
-            rpl += (i + '\t')
+            rpl += (i + ', ')
         elif 'rpo' in i and i not in repeat:
-            rpo += (i + '\t')
+            rpo += (i + ', ')
         elif 'ndh' in i and i not in repeat:
-            ndh += (i + '\t')
+            ndh += (i + ', ')
         elif 'psa' in i and i not in repeat:
-            psa += (i + '\t')
+            psa += (i + ', ')
         elif 'psb' in i and i not in repeat:
-            psb += (i + '\t')
+            psb += (i + ', ')
         elif 'pet' in i and i not in repeat:
-            pet += (i + '\t')
+            pet += (i + ', ')
         elif 'atp' in i and i not in repeat:
-            atp += (i + '\t')
+            atp += (i + ', ')
         elif 'ycf' in i and i not in repeat:
-            ycf += (i + '\t')
+            ycf += (i + ', ')
         else :
             if i not in repeat:
                 print i
@@ -161,25 +166,25 @@ def gene_classfication(sequence, repeat):
         if 'tRNA' in j:
             n_tRNA += 1
         if 'rrn' in j:
-            rrn += ('%s(x2)\t' % (j))
+            rrn += ('%s(x2), ' % (j))
         if 'rps' in j:
-            rps += ('%s(x2)\t' % (j))
+            rps += ('%s(x2), ' % (j))
         if 'rpl' in j:
-            rpl += ('%s(x2)\t' % (j))
+            rpl += ('%s(x2), ' % (j))
         if 'rpo' in j:
-            rpo += ('%s(x2)\t' % (j))
+            rpo += ('%s(x2), ' % (j))
         if 'ndh' in j:
-            ndh += ('%s(x2)\t' % (j))
+            ndh += ('%s(x2), ' % (j))
         if 'psa' in j:
-            psa += ('%s(x2)\t' % (j))
+            psa += ('%s(x2), ' % (j))
         if 'psb' in j:
-            psb += ('%s(x2)\t' % (j))
+            psb += ('%s(x2), ' % (j))
         if 'pet' in j:
-            pet += ('%s(x2)\t' % (j))
+            pet += ('%s(x2), ' % (j))
         if 'atp' in j:
-            atp += ('%s(x2)\t' % (j))
+            atp += ('%s(x2), ' % (j))
         if 'ycf' in j:
-            ycf += ('%s(x2)\t' % (j))
+            ycf += ('%s(x2), ' % (j))
     print '%s tRNA genes' % (n_tRNA)
     print rrn
     print rps
@@ -238,29 +243,42 @@ def frac_info(genbank):
                 loci = sorted(re.findall(r'\d+\.?\d*' , str(i.location)))
                 for j in range(1, len(loci)):
                     length.append(str(int(loci[j]) - int(loci[j-1])))
-                print i.qualifiers['gene'][0], misc, '\t'.join((length))
+                print i.qualifiers['gene'][0], '\t', misc, '\t' ,'\t'.join((length))
             else:
                 if repeat == False:
                     loci = sorted(re.findall(r'\d+\.?\d*' , str(i.location)))
                     length = []
                     for j in range(1, len(loci), 2):
                         length.append(str(int(loci[j]) - int(loci[j-1])))
-                    print i.qualifiers['gene'][0], 'LSC/IR', '\t'.join((length))
+                    print i.qualifiers['gene'][0], '\t', 'LSC/IR', '\t','\t'.join((length))
                     repeat = True
         if i.type == 'misc_feature':
             start = i.location.start
             end = i.location.end
             misc = i.qualifiers['note'][0]
 
-def base_statistics(single):
+def base_statistics(single, CDS, tRNA):
     sequence = str(single.values()[0])
     AT_percent = base_ratio(sequence)[0] + base_ratio(sequence)[1]
     GC_skew, AT_skew = skew(sequence)
-    print GC_skew
+    print 'Entire genome, length:%s, AT:%s, AT_skew:%s, GC_skew:%s' % (len(sequence), AT_percent, AT_skew, GC_skew)
+    sequence = CDS
+    AT_percent = base_ratio(sequence)[0] + base_ratio(sequence)[1]
+    p = ''
+    for i in range(len(sequence)):
+        if i % 3 == 2:
+            p += sequence[i]
+    AT_percent = base_ratio(sequence)[0] + base_ratio(sequence)[1]
+    th_percent = base_ratio(p)[0] + base_ratio(p)[1]
+    print 'Protein coding gene, length(aa):%s, AT(all):%s, AT(3rd):%s' %(len(sequence)/3, AT_percent, th_percent)
+    sequence = tRNA
+    AT_percent = base_ratio(sequence)[0] + base_ratio(sequence)[1]
+    GC_skew, AT_skew = skew(sequence)
+    print 'tRNA, length:%s, AT:%s, AT-skew:%s, GC-skew:%s' % (len(sequence), AT_percent, AT_skew, GC_skew)
     
 def main():
     args = read_params(sys.argv)
-    fasta, misc, repeat, frac, single = genbank_parse(args['genbank'], args['seqtype'])
+    fasta, misc, repeat, frac, single, CDS, tRNA = genbank_parse(args['genbank'], args['seqtype'])
     if args['task'] == 'cs':
         gcskew(fasta, args)
         skew_draw()
@@ -270,6 +288,7 @@ def main():
         section_statistics(misc, fasta, repeat, args)
     if args['task'] == 'f':
         frac_info(args['genbank'])
-    base_statistics(single)
+    if args['task'] == 'l':
+        base_statistics(single, CDS, tRNA)
 if __name__ == "__main__":
     main()
