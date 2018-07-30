@@ -48,6 +48,7 @@ def genbank_parse(genbank, seqtype):
     repeat = []
     single_CDS = ''
     single_tRNA = ''
+    CDSwithoutStopCodon = ''
     for i in SeqIO.parse(genbank,'genbank'):
         single[i.id] = i.seq
         for seq_feature in i.features:
@@ -55,6 +56,7 @@ def genbank_parse(genbank, seqtype):
                 single_tRNA += seq_feature.extract(i.seq)
             if seq_feature.type == 'CDS':
                 single_CDS += seq_feature.extract(i.seq)
+                CDSwithoutStopCodon += seq_feature.extract(i.seq)[:-3]
             if seq_feature.type == 'misc_feature':
                 misc_feature = seq_feature.qualifiers.values()[0][0]
                 geneSeq = seq_feature.extract(i.seq)
@@ -80,7 +82,7 @@ def genbank_parse(genbank, seqtype):
         for key in list(seg):
             if not 'tRNA' in key:
                 seg.pop(key)
-    return seg, misc, repeat, frac, single, single_CDS, single_tRNA     
+    return seg, misc, repeat, frac, single, single_CDS, single_tRNA, CDSwithoutStopCodon 
 
 def gcskew(sequence, args):
     if args['seqtype'] == 'CDS':
@@ -253,12 +255,12 @@ def frac_info(genbank):
             end = i.location.end
             misc = i.qualifiers['note'][0]
 
-def base_statistics(single, CDS, tRNA):
+def base_statistics(single, wcds, tRNA):
     sequence = str(single.values()[0])
     AT_percent = base_ratio(sequence)[0] + base_ratio(sequence)[1]
     GC_skew, AT_skew = skew(sequence)
     print 'Entire genome, length:%s, AT:%s, AT_skew:%s, GC_skew:%s' % (len(sequence), AT_percent, AT_skew, GC_skew)
-    sequence = CDS
+    sequence = wcds
     AT_percent = base_ratio(sequence)[0] + base_ratio(sequence)[1]
     p = ''
     for i in range(len(sequence)):
@@ -274,7 +276,7 @@ def base_statistics(single, CDS, tRNA):
     
 def main():
     args = read_params(sys.argv)
-    fasta, misc, repeat, frac, single, CDS, tRNA = genbank_parse(args['genbank'], args['seqtype'])
+    fasta, misc, repeat, frac, single, CDS, tRNA, wcds = genbank_parse(args['genbank'], args['seqtype'])
     if args['task'] == 'cs':
         gcskew(fasta, args)
         skew_draw()
@@ -285,6 +287,6 @@ def main():
     if args['task'] == 'f':
         frac_info(args['genbank'])
     if args['task'] == 'l':
-        base_statistics(single, CDS, tRNA)
+        base_statistics(single,wcds,tRNA)
 if __name__ == "__main__":
     main()
