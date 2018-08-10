@@ -204,11 +204,11 @@ def section_statistics(misc, seg, cds):
     for i in misc:
         a, t, g, c, sum_base = base_ratio(misc[i])
         print i, '\t', a,'\t', t,'\t', g,'\t', c,'\t', sum_base
-        ta += a; tt += t; tg += g; tc += c
+        ta += a*sum_base; tt += t*sum_base; tg += g*sum_base; tc += c*sum_base
         sum_all += sum_base
-    a = float(ta)/sum_all*100; t = float(tt)/sum_all*100
-    g = float(tg)/sum_all*100; c = float(tc)/sum_all*100
-    print 'Total', '\t', a,'\t',t,'\t', g,'\t', c,'\t', sum_all
+    A = float(ta)/sum_all; T = float(tt)/sum_all
+    G = float(tg)/sum_all; C = float(tc)/sum_all
+    print 'Total', '\t', A,'\t',T,'\t', C,'\t', G,'\t', sum_all
     p0 = ''; p1 = ''; p2 = ''
     sequence = cds
     A, T, G, C, length = base_ratio(sequence)
