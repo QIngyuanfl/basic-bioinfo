@@ -137,7 +137,8 @@ def combine_asn():
             words=handle.read()
             records=words.split('>')
             for j in range(len(records)):
-                if num in records[j]:
+                sample = records[j].split('\n')[0]
+                if num == sample:
                     seq=records[j].split('\n',1)
                     sequence=''.join(seq[1].split('\n'))
                     f.write('%s'%sequence)
@@ -146,9 +147,9 @@ def combine_asn():
     f.close()
                     
 def main():
-    downloadsASN()
-    combine_gene()
-    muscle()
+    #downloadsASN()
+    #combine_gene()
+    #muscle()
     combine_asn()
 
 if __name__=="__main__":
