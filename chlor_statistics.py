@@ -48,6 +48,7 @@ def genbank_parse(genbank, seqtype):
     repeat = []
     single_CDS = ''
     single_tRNA = ''
+    CDSwithoutStopCodon = ''
     for i in SeqIO.parse(genbank,'genbank'):
         single[i.id] = i.seq
         for seq_feature in i.features:
@@ -55,6 +56,7 @@ def genbank_parse(genbank, seqtype):
                 single_tRNA += seq_feature.extract(i.seq)
             if seq_feature.type == 'CDS':
                 single_CDS += seq_feature.extract(i.seq)
+                CDSwithoutStopCodon += seq_feature.extract(i.seq)[:-3]
             if seq_feature.type == 'misc_feature':
                 misc_feature = seq_feature.qualifiers.values()[0][0]
                 geneSeq = seq_feature.extract(i.seq)
@@ -80,7 +82,7 @@ def genbank_parse(genbank, seqtype):
         for key in list(seg):
             if not 'tRNA' in key:
                 seg.pop(key)
-    return seg, misc, repeat, frac, single, single_CDS, single_tRNA     
+    return seg, misc, repeat, frac, single, single_CDS, single_tRNA, CDSwithoutStopCodon 
 
 def gcskew(sequence, args):
     if args['seqtype'] == 'CDS':
@@ -120,9 +122,6 @@ def skew_draw():
             csv[line[0]]=[line[1],line[2]]
             n += 1
     Pc = ', '.join(sorted(csv))
-    for i in range (1,n):
-        breaks += ('%s,' % i)
-    breaks += str(n)
         
     with open('gc_skew.R','w') as f:
         f.write('library(ggplot2)\n')
@@ -130,7 +129,8 @@ def skew_draw():
         f.write('gc <- read.csv(file="gc_skew.csv", header=TRUE, sep="\t")\n')
         f.write('pdf("gc_skew.pdf",width =35,height=15)\n')
         f.write('gc_long <- melt(gc, id = "Pc", value= "skew")\n')
-        f.write('ggplot(gc_long,aes(x=as.numeric(Pc),y=value,colour=variable)) + geom_line() +geom_point()+labs (y= "value", x= "Gene", colour="skew") +scale_x_continuous(limits=c(1,%s),breaks=c(%s),labels=c(%s))' % (n, breaks, Pc))
+        f.write('ggplot(gc_long,aes(x=as.numeric(Pc),y=value,colour=variable)) + geom_line() +geom_point()+labs (y= "value", x= "Gene", colour="skew") +scale_x_continuous(limits=c(1,%s),breaks=seq(1,%s,1),labels=c(%s))' % (n, n, Pc))
+
 
     os.system('Rscript gc_skew.R')
 
@@ -167,25 +167,25 @@ def gene_classfication(sequence, repeat):
         if 'tRNA' in j:
             n_tRNA += 1
         if 'rrn' in j:
-            rrn += ('%s(x2), ' % (j))
+            rrn += ('%s(x%s), ' % (j, repeat.count(j)+1))
         if 'rps' in j:
-            rps += ('%s(x2), ' % (j))
+            rps += ('%s(x%s), ' % (j, repeat.count(j)+1))
         if 'rpl' in j:
-            rpl += ('%s(x2), ' % (j))
+            rpl += ('%s(x%s), ' % (j, repeat.count(j)+1))
         if 'rpo' in j:
-            rpo += ('%s(x2), ' % (j))
+            rpo += ('%s(x%s), ' % (j, repeat.count(j)+1))
         if 'ndh' in j:
-            ndh += ('%s(x2), ' % (j))
+            ndh += ('%s(x%s), ' % (j, repeat.count(j)+1))
         if 'psa' in j:
-            psa += ('%s(x2), ' % (j))
+            psa += ('%s(x%s), ' % (j, repeat.count(j)+1))
         if 'psb' in j:
-            psb += ('%s(x2), ' % (j))
+            psb += ('%s(x%s), ' % (j, repeat.count(j)+1))
         if 'pet' in j:
-            pet += ('%s(x2), ' % (j))
+            pet += ('%s(x%s), ' % (j, repeat.count(j)+1))
         if 'atp' in j:
-            atp += ('%s(x2), ' % (j))
+            atp += ('%s(x%s), ' % (j, repeat.count(j)+1))
         if 'ycf' in j:
-            ycf += ('%s(x2), ' % (j))
+            ycf += ('%s(x%s), ' % (j, repeat.count(j)+1))
     print '%s tRNA genes' % (n_tRNA)
     print rrn
     print rps
@@ -253,12 +253,12 @@ def frac_info(genbank):
             end = i.location.end
             misc = i.qualifiers['note'][0]
 
-def base_statistics(single, CDS, tRNA):
+def base_statistics(single, wcds, tRNA):
     sequence = str(single.values()[0])
     AT_percent = base_ratio(sequence)[0] + base_ratio(sequence)[1]
     GC_skew, AT_skew = skew(sequence)
     print 'Entire genome, length:%s, AT:%s, AT_skew:%s, GC_skew:%s' % (len(sequence), AT_percent, AT_skew, GC_skew)
-    sequence = CDS
+    sequence = wcds
     AT_percent = base_ratio(sequence)[0] + base_ratio(sequence)[1]
     p = ''
     for i in range(len(sequence)):
@@ -274,7 +274,7 @@ def base_statistics(single, CDS, tRNA):
     
 def main():
     args = read_params(sys.argv)
-    fasta, misc, repeat, frac, single, CDS, tRNA = genbank_parse(args['genbank'], args['seqtype'])
+    fasta, misc, repeat, frac, single, CDS, tRNA, wcds = genbank_parse(args['genbank'], args['seqtype'])
     if args['task'] == 'cs':
         gcskew(fasta, args)
         skew_draw()
@@ -285,6 +285,6 @@ def main():
     if args['task'] == 'f':
         frac_info(args['genbank'])
     if args['task'] == 'l':
-        base_statistics(single, CDS, tRNA)
+        base_statistics(single,wcds,tRNA)
 if __name__ == "__main__":
     main()
